@@ -1,0 +1,18 @@
+# Saved state from local runs
+.state/
+
+# Local secrets, never committed
+.env
+.env.*
+
+# Node
+node_modules/
+
+# OS junk
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Editor/IDE
+.vscode/
+.idea/

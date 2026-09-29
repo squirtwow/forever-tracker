@@ -1,0 +1,10 @@
+{
+  "23": { "name": "In Development", "parent": null },
+  "170": { "name": "World of Warcraft", "parent": null },
+  "171": { "name": "General Discussion", "parent": 170 },
+  "345": { "name": "Midnight: 12.1.5 Public Test Realm", "parent": 23 },
+  "346": { "name": "WoW: Forever", "parent": null },
+  "347": { "name": "World of Warcraft: Forever General Discussion", "parent": 346 },
+  "349": { "name": "WoW: Forever Beta Discussion", "parent": 23 },
+  "360": { "name": "Launch Discussion", "parent": 346 }
+}

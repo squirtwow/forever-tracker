@@ -1,0 +1,16 @@
+{
+  "name": "forever-tracker",
+  "private": true,
+  "description": "Posts WoW Forever builds, UI source changes and patch notes to a staff Discord channel.",
+  "author": "Squirt",
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "dry-run": "node src/tracker.mjs --dry-run",
+    "seed-old": "node src/tracker.mjs --seed-old"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "posts": [
+    {
+      "id": 30245030, "created_at": "2026-09-28T23:24:55.430Z", "topic_id": 2356115, "post_number": 31, "post_type": 1,
+      "category_id": 349, "topic_title": "Can we put the Kyle Questline back into Mulgore?",
+      "url": "/t/can-we-put-the-kyle-questline-back-into-mulgore/2356115/31",
+      "username": "Kaivax", "user_title": "Community Manager", "excerpt": "Sample reply text.", "truncated": true
+    },
+    {
+      "id": 30244014, "created_at": "2026-09-28T22:00:07.406Z", "topic_id": 2365460, "post_number": 1, "post_type": 1,
+      "category_id": 346, "topic_title": "Watch the Keynote Presentations Live",
+      "url": "/t/watch-the-keynote-presentations-live/2365460/1",
+      "username": "BlizzardEntertainment", "user_title": null, "excerpt": "Sample news text.", "truncated": true
+    },
+    {
+      "id": 30199376, "created_at": "2026-09-25T17:20:04.142Z", "topic_id": 2336376, "post_number": 154, "post_type": 1,
+      "category_id": 171, "topic_title": "World of Warcraft: Midnight Hotfixes - September 24",
+      "url": "/t/world-of-warcraft-midnight-hotfixes-september-24/2336376/154",
+      "username": "Linxy", "user_title": "Community Manager", "excerpt": "Sample retail hotfix text.", "truncated": true
+    },
+    {
+      "id": 30185413, "created_at": "2026-09-24T22:43:23.777Z", "topic_id": 2360719, "post_number": 1, "post_type": 1,
+      "category_id": 349, "topic_title": "Beta is Up - Development Notes Posted",
+      "url": "/t/beta-is-up-development-notes-posted/2360719/1",
+      "username": "Kaivax", "user_title": "Community Manager", "excerpt": "Sample link to the notes.", "truncated": false
+    },
+    {
+      "id": 30185239, "created_at": "2026-09-24T22:30:51.081Z", "topic_id": 2352687, "post_number": 5, "post_type": 1,
+      "category_id": 349, "topic_title": "WoW Forever Beta Known Issues - September 24",
+      "url": "/t/wow-forever-beta-known-issues-september-24/2352687/5",
+      "username": "Kaivax", "user_title": "Community Manager", "excerpt": "Sample known issues update.", "truncated": false
+    },
+    {
+      "id": 30185131, "created_at": "2026-09-24T22:23:24.849Z", "topic_id": 2360696, "post_number": 1, "post_type": 1,
+      "category_id": 349, "topic_title": "WoW Forever Beta Development Notes – Updated September 24",
+      "url": "/t/wow-forever-beta-development-notes-updated-september-24/2360696/1",
+      "username": "Kaivax", "user_title": "Community Manager",
+      "excerpt": "Sample notes: a new beta build with fixes for casting animations &amp; water sounds.", "truncated": true
+    },
+    {
+      "id": 30159397, "created_at": "2026-09-23T01:10:00.000Z", "topic_id": 2358655, "post_number": 1, "post_type": 1,
+      "category_id": 349, "topic_title": "Beta Client Update - September 22",
+      "url": "/t/beta-client-update-september-22/2358655/1",
+      "username": "Kaivax", "user_title": "Community Manager", "excerpt": "Sample client update text.", "truncated": true
+    },
+    {
+      "id": 30157204, "created_at": "2026-09-22T23:00:00.000Z", "topic_id": 2359000, "post_number": 5, "post_type": 1,
+      "category_id": 345, "topic_title": "Midnight: 12.1.5 PTR Development Notes",
+      "url": "/t/midnight-12-1-5-ptr-development-notes/2359000/5",
+      "username": "Linxy", "user_title": "Community Manager", "excerpt": "Sample PTR notes.", "truncated": true
+    }
+  ]
+}
