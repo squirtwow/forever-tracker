@@ -3,7 +3,9 @@
 import { pause, request } from './http.mjs';
 
 export const COLOURS = { build: 0xe8a33d, ui: 0x7289da, notes: 0x148eff, live: 0x3ba55d };
-const MAX_ATTEMPTS = 5;
+const MAX_AGE_DAYS = 7;
+// Discord answers that mean the webhook or Discord is at fault, not the message.
+const WAIT = new Set([401, 403, 404, 408, 429]);
 
 // Only a real Discord webhook address, and never anything else.
 export function validateWebhook(value) {
@@ -95,10 +97,15 @@ export async function sendDiscord(webhook, payload, { fetcher, sleep = pause } =
 }
 
 // Sends the outbox oldest first, a second apart, saving after each message so
-// a crash never loses or repeats one. A failed message stays for the next run
-// and is dropped after five tries; one Discord refuses as malformed (400) is
-// dropped straight away. In a dry run the messages are printed instead.
-export async function sendOutbox(state, { send, save = async () => {}, dryRun = false, print = console.log, sleep = pause, log = console.log }) {
+// a crash never loses or repeats one. A message Discord refuses (400 and most
+// other 4xx) is dropped straight away. Any other failure, such as a deleted
+// webhook (401, 403, 404), a rate limit, Discord being down or a network
+// error, stops sending and the message waits for the next run, however many
+// runs that takes. Only a message queued over a week ago is dropped unsent.
+// In a dry run the messages are printed instead.
+export async function sendOutbox(state, {
+  send, save = async () => {}, dryRun = false, print = console.log, sleep = pause, log = console.log, now = new Date(),
+}) {
   let sent = 0, tried = 0, failed = false;
   while (state.outbox.length) {
     const item = state.outbox[0];
@@ -108,20 +115,26 @@ export async function sendOutbox(state, { send, save = async () => {}, dryRun = 
       sent++;
       continue;
     }
+    if (now - Date.parse(item.queued) > MAX_AGE_DAYS * 86400000) {
+      state.outbox.shift();
+      log(`Dropped ${item.key}: queued over ${MAX_AGE_DAYS} days ago.`);
+      await save();
+      continue;
+    }
     if (tried++) await sleep(1000);
     try {
       await send(item.payload);
     } catch (error) {
       failed = true;
       item.attempts = (item.attempts || 0) + 1;
-      log(`${error.message} (${item.key}, try ${item.attempts} of ${MAX_ATTEMPTS})`);
-      const malformed = error.status === 400;
-      if (malformed || item.attempts >= MAX_ATTEMPTS) {
+      log(`${error.message} (${item.key}, try ${item.attempts})`);
+      const refused = error.status >= 400 && error.status < 500 && !WAIT.has(error.status);
+      if (refused) {
         state.outbox.shift();
-        log(`Dropped ${item.key}.`);
+        log(`Dropped ${item.key}: Discord refused it.`);
       }
       await save();
-      if (malformed) continue;
+      if (refused) continue;
       break;
     }
     state.outbox.shift();

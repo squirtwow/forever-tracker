@@ -30,6 +30,7 @@ export function readOptions(env = {}, argv = []) {
     seedOld,
     dryRun: seedOld || argv.includes('--dry-run') || yes(env.DRY_RUN),
     stateFile: env.STATE_FILE || '.state/state.json',
+    stateKey: /^[\w.-]+$/.test(env.STATE_KEY || '') ? env.STATE_KEY : 'forever-tracker-state-',
     products: products.length ? products : DEFAULT_PRODUCTS,
     knownIssues: yes(env.INCLUDE_KNOWN_ISSUES),
     watch: list(env.WATCH_ADDONS),
@@ -41,10 +42,23 @@ export function readOptions(env = {}, argv = []) {
   };
 }
 
-// With no saved state, a successful scheduled run before this one means the
-// state was lost (scheduled runs are never dry runs), not that this is the start.
+// On GitHub, with no state file: whether a saved state is in the Actions cache
+// (true), none is (false), or GitHub couldn't say (null). One that is there
+// but wasn't restored means the cache had an error.
+async function stateInCache(options, web) {
+  try {
+    const caches = await get(`https://api.github.com/repos/${options.repository}/actions/caches?key=${encodeURIComponent(options.stateKey)}&per_page=1`,
+      'GitHub', { headers: githubHeaders(options.token), ...web });
+    return Array.isArray(caches?.actions_caches) ? caches.actions_caches.length > 0 : null;
+  } catch {
+    return null;
+  }
+}
+
+// With no saved state anywhere, a successful scheduled run before this one
+// means the state was lost, not that this is the start. Scheduled runs are
+// never dry runs, and one that records nothing on a fresh start fails.
 async function stateWasLost(options, web) {
-  if (!options.repository || !options.token) return false;
   try {
     const runs = await get(`https://api.github.com/repos/${options.repository}/actions/workflows/${options.workflow}/runs?event=schedule&status=success&per_page=1`,
       'GitHub', { headers: githubHeaders(options.token), ...web });
@@ -98,7 +112,21 @@ export async function run({
   const webhook = options.dryRun ? null : validateWebhook(env.FOREVER_TRACKER_WEBHOOK);
   const web = { fetcher, sleep };
   const warn = text => log(options.actions ? `::warning::${text}` : text);
-  const state = options.seedOld ? await seedOldState(options, web, now()) : await loadState(options.stateFile, log);
+  const onGitHub = Boolean(options.repository && options.token);
+  let state = options.seedOld ? await seedOldState(options, web, now()) : await loadState(options.stateFile, log);
+  const missing = !state;
+  // No state file on GitHub: if a saved state is in the cache, restoring it
+  // failed. Starting again would skip anything new since the last run, so
+  // this run stops without checking or saving, and the next one tries again.
+  if (missing && onGitHub) {
+    const cached = await stateInCache(options, web);
+    if (cached !== false) {
+      warn(cached ? 'The saved state is in the cache but was not restored. Nothing was checked or saved; the next run tries again.'
+        : "Couldn't ask GitHub whether a saved state exists. Nothing was checked or saved; the next run tries again.");
+      return { exitCode: 1, state: null };
+    }
+  }
+  state ||= emptyState();
   const save = () => (options.dryRun ? Promise.resolve() : saveState(options.stateFile, state));
   const fresh = !state.startedAt;
   const found = [];
@@ -142,7 +170,8 @@ export async function run({
     const result = await checkUiSource(state.ui, { token: options.token, ...web });
     if (result.event) found.push({ key: `ui:${result.entry.sha}`, payload: message(uiEmbed(result.event, { watch: options.watch })) });
     state.ui = result.entry;
-    log(`UI source: ${result.entry.message}${result.first ? ', recorded' : `, ${result.kind}`}.`);
+    log(result.kind === 'older' ? `UI source: ${result.head.message} is not newer than ${result.entry.message}, so not posted.`
+      : `UI source: ${result.entry.message}${result.first ? ', recorded' : `, ${result.kind}`}.`);
   });
 
   await source('Forum', 'forum', async () => {
@@ -156,27 +185,29 @@ export async function run({
     log(result.first ? `Forum: ${result.checked} staff posts recorded.` : `Forum: ${result.checked} new staff posts, ${result.events.length} Forever notes.`);
   });
 
-  // The first run only records where everything is, then says it's live.
+  // The first run only records where everything is, then says it's live. A
+  // first run where nothing worked records nothing, and fails.
+  const queued = now().toISOString();
   if (fresh) {
     if (worked) {
-      state.startedAt = now().toISOString();
-      const lost = await stateWasLost(options, web);
-      state.outbox = [{ key: 'live', attempts: 0, payload: message(liveEmbed(state, { products: options.products, latest, lost, now: now() })) }];
+      state.startedAt = queued;
+      const lost = missing && onGitHub && await stateWasLost(options, web);
+      state.outbox = [{ key: 'live', attempts: 0, queued, payload: message(liveEmbed(state, { products: options.products, latest, lost, now: now() })) }];
     }
   } else {
     for (const item of found) {
-      if (!state.outbox.some(queued => queued.key === item.key)) state.outbox.push({ ...item, attempts: 0 });
+      if (!state.outbox.some(waiting => waiting.key === item.key)) state.outbox.push({ ...item, attempts: 0, queued });
     }
   }
   await save();
 
   const result = await sendOutbox(state, {
-    dryRun: options.dryRun, print, sleep, log, save,
+    dryRun: options.dryRun, print, sleep, log, save, now: now(),
     send: payload => sendDiscord(webhook, payload, web),
   });
   const count = `${result.sent} ${result.sent === 1 ? 'message' : 'messages'}`;
   log(options.dryRun ? `Dry run: ${count} printed, nothing sent.` : `Sent ${count}.`);
-  const failed = result.failed || alert || (options.dryRun && failures > 0);
+  const failed = result.failed || alert || (options.dryRun && failures > 0) || (fresh && !worked);
   return { exitCode: failed ? 1 : 0, state };
 }
 

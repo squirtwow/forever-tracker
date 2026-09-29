@@ -16,11 +16,14 @@ on:
 
 permissions:
   contents: read
-  actions: read # only to tell a lost state from the very first run
+  actions: read # to see whether a saved state is in the cache, and to tell a lost state from the very first run
 
 concurrency:
   group: forever-tracker
   cancel-in-progress: false
+
+env:
+  STATE_KEY: forever-tracker-state-
 
 jobs:
   track:
@@ -32,13 +35,15 @@ jobs:
           persist-credentials: false
 
       # The newest saved state. Each run saves under its own key, because a
-      # cache can't be overwritten; the prefix finds the latest one.
+      # cache can't be overwritten; the prefix finds the latest one. If the
+      # cache has an error here, the tracker sees a saved state it didn't get,
+      # and stops without saving, so the next run tries again.
       - name: Restore saved state
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .state
-          key: forever-tracker-state-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: forever-tracker-state-
+          key: ${{ env.STATE_KEY }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ env.STATE_KEY }}
 
       - name: Check for Forever changes
         run: node src/tracker.mjs
@@ -57,4 +62,4 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .state
-          key: forever-tracker-state-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ env.STATE_KEY }}${{ github.run_id }}-${{ github.run_attempt }}

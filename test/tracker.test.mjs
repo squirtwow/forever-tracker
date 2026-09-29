@@ -23,7 +23,7 @@ const notesPost = {
 function world() {
   const web = {
     versions: table, patchStatus: 200, commits: [commit(A, '1.60.1 (70009)')], compare: null, githubStatus: 200,
-    posts: [...page], forumStatus: 200, discordStatus: 200, earlierRuns: 0, posted: [], asked: [],
+    posts: [...page], forumStatus: 200, discordStatus: 200, earlierRuns: 0, caches: 0, cacheStatus: 200, posted: [], asked: [],
   };
   web.fetcher = async (url, init) => {
     const href = String(url);
@@ -35,6 +35,10 @@ function world() {
     }
     if (href.includes('battle.net')) return new Response(web.versions, { status: web.patchStatus });
     if (href.startsWith('https://api.github.com/')) {
+      if (href.includes('/actions/caches?key=forever-tracker-state-&')) {
+        if (web.cacheStatus !== 200) return new Response('{}', { status: web.cacheStatus });
+        return Response.json({ total_count: web.caches, actions_caches: Array.from({ length: Math.min(web.caches, 1) }, () => ({ key: 'forever-tracker-state-1-1' })) });
+      }
       if (web.githubStatus !== 200) return new Response('{}', { status: web.githubStatus });
       if (href.includes('/actions/workflows/tracker.yml/runs?event=schedule&status=success')) return Response.json({ total_count: web.earlierRuns });
       if (href.includes('/commits?sha=forever')) {
@@ -169,9 +173,9 @@ test('when Discord is down, messages wait in the outbox for the next run', async
   web.discordStatus = 503;
   const down = await tracker(web, { env: { STATE_FILE: file } });
   assert.equal(down.exitCode, 1);
-  assert.ok(down.logs.includes('Discord: HTTP 503 (forum:30300001, try 1 of 5)'));
+  assert.ok(down.logs.includes('Discord: HTTP 503 (forum:30300001, try 1)'));
   const queued = await readState(file);
-  assert.deepEqual(queued.outbox.map(item => [item.key, item.attempts]), [['forum:30300001', 1]]);
+  assert.deepEqual(queued.outbox.map(item => [item.key, item.attempts, item.queued]), [['forum:30300001', 1, '2026-09-30T02:00:00.000Z']]);
   web.discordStatus = 200;
   const back = await tracker(web, { env: { STATE_FILE: file } });
   assert.equal(back.exitCode, 0);
@@ -179,15 +183,32 @@ test('when Discord is down, messages wait in the outbox for the next run', async
   assert.deepEqual((await readState(file)).outbox, []);
 });
 
-test('the first run with every source down posts nothing and stays a first run', async () => {
+test('a deleted webhook loses nothing: messages wait until the secret is fixed', async () => {
   const web = world(), file = await stateFile();
-  web.patchStatus = web.githubStatus = web.forumStatus = 503;
   await tracker(web, { env: { STATE_FILE: file } });
+  web.posts.push(notesPost);
+  web.discordStatus = 404;
+  for (let runs = 1; runs <= 10; runs++) assert.equal((await tracker(web, { env: { STATE_FILE: file } })).exitCode, 1);
+  assert.deepEqual((await readState(file)).outbox.map(item => [item.key, item.attempts]), [['forum:30300001', 10]]);
+  web.discordStatus = 200;
+  await tracker(web, { env: { STATE_FILE: file } });
+  assert.deepEqual(titles(web).slice(1), ['Beta Client Update - September 30']);
+});
+
+test('the first run with every source down posts nothing, fails, and stays a first run', async () => {
+  const web = world(), file = await stateFile();
+  const env = { STATE_FILE: file, GITHUB_REPOSITORY: 'squirtwow/forever-tracker' };
+  web.patchStatus = web.githubStatus = web.forumStatus = 503;
+  const down = await tracker(web, { env });
+  assert.equal(down.exitCode, 1, 'so GitHub never counts it as a working run');
   assert.equal(web.posted.length, 0);
   assert.equal((await readState(file)).startedAt, null);
   web.patchStatus = web.githubStatus = web.forumStatus = 200;
-  await tracker(web, { env: { STATE_FILE: file } });
+  web.earlierRuns = 1;
+  const up = await tracker(web, { env });
+  assert.equal(up.exitCode, 0);
   assert.deepEqual(titles(web), ['Forever tracker is live']);
+  assert.doesNotMatch(web.posted[0].embeds[0].description, /lost/, 'its saved state was restored, so nothing was lost');
 });
 
 test('a source that was down on the first run is recorded quietly later', async () => {
@@ -202,15 +223,31 @@ test('a source that was down on the first run is recorded quietly later', async 
   assert.equal((await readState(file)).ui.sha, B);
 });
 
-test('lost state says so, when an earlier scheduled run had worked', async () => {
+const onGitHub = { GITHUB_REPOSITORY: 'squirtwow/forever-tracker', GITHUB_WORKFLOW_REF: 'squirtwow/forever-tracker/.github/workflows/tracker.yml@refs/heads/main', GITHUB_ACTIONS: 'true' };
+
+test('lost state says so, when no saved state is left and an earlier scheduled run had worked', async () => {
   const web = world();
   web.earlierRuns = 3;
-  const env = { GITHUB_REPOSITORY: 'squirtwow/forever-tracker', GITHUB_WORKFLOW_REF: 'squirtwow/forever-tracker/.github/workflows/tracker.yml@refs/heads/main' };
-  await tracker(web, { env: { ...env, STATE_FILE: await stateFile() } });
+  await tracker(web, { env: { ...onGitHub, STATE_FILE: await stateFile() } });
   assert.match(web.posted[0].embeds[0].description, /The saved state was lost, so anything that changed while it was missing was not posted\.$/);
   web.earlierRuns = 0;
-  await tracker(web, { env: { ...env, STATE_FILE: await stateFile() } });
+  await tracker(web, { env: { ...onGitHub, STATE_FILE: await stateFile() } });
   assert.doesNotMatch(web.posted[1].embeds[0].description, /lost/);
+});
+
+test('a saved state the cache failed to restore stops the run without checking or saving anything', async () => {
+  const web = world(), file = await stateFile();
+  web.caches = 3;
+  web.earlierRuns = 3;
+  const result = await tracker(web, { env: { ...onGitHub, STATE_FILE: file } });
+  assert.equal(result.exitCode, 1);
+  assert.ok(result.logs.includes('::warning::The saved state is in the cache but was not restored. Nothing was checked or saved; the next run tries again.'));
+  assert.ok(!web.asked.some(ask => /battle\.net|forums\.blizzard|commits\?sha|discord\.com/.test(ask.url)), 'nothing checked or posted');
+  await assert.rejects(readFile(file), { code: 'ENOENT' }, 'nothing saved, so the next run restores the real state');
+  web.cacheStatus = 500;
+  const unknown = await tracker(web, { env: { ...onGitHub, STATE_FILE: file } });
+  assert.equal(unknown.exitCode, 1, 'when GitHub cannot say, it is safer to wait');
+  await assert.rejects(readFile(file), { code: 'ENOENT' });
 });
 
 test('a dry run prints the messages, sends nothing and saves nothing', async () => {

@@ -101,27 +101,48 @@ test('the outbox is sent in order, a second apart, saving after each', async () 
   assert.deepEqual(waits, [1000, 1000]);
 });
 
-test('a failed message waits for the next run and is dropped after five tries', async () => {
-  const state = outbox(['a', 'b']);
-  const logs = [];
-  const failing = { send: async () => { throw Object.assign(new Error('Discord: HTTP 503'), { status: 503 }); }, sleep: async () => {}, log: line => logs.push(line) };
-  for (let run = 1; run <= 4; run++) {
-    assert.deepEqual(await sendOutbox(state, failing), { sent: 0, failed: true });
-    assert.equal(state.outbox[0].attempts, run);
-    assert.equal(state.outbox.length, 2);
+test('while the webhook is broken or Discord is down, messages wait however many runs it takes', async () => {
+  for (const status of [401, 403, 404, 429, 500, 503, undefined]) {
+    const state = outbox(['a', 'b']);
+    const logs = [];
+    const failing = {
+      send: async () => { throw Object.assign(new Error(status ? `Discord: HTTP ${status}` : 'Discord: network failure or timeout'), { status }); },
+      sleep: async () => {}, log: line => logs.push(line), now: new Date('2026-10-01T00:00:00Z'),
+    };
+    for (let run = 1; run <= 20; run++) {
+      assert.deepEqual(await sendOutbox(state, failing), { sent: 0, failed: true });
+      assert.equal(state.outbox[0].attempts, run);
+    }
+    assert.deepEqual(state.outbox.map(item => item.key), ['a', 'b'], `nothing dropped after ${status}`);
+    assert.match(logs[0], /^Discord: .+ \(a, try 1\)$/);
+    // Once the secret is fixed, everything goes out in order.
+    const sent = [];
+    await sendOutbox(state, { send: async payload => { sent.push(payload.embeds[0].title); }, sleep: async () => {}, log: () => {} });
+    assert.deepEqual(sent, ['a', 'b']);
   }
-  await sendOutbox(state, failing);
-  assert.deepEqual(state.outbox.map(item => item.key), ['b']);
-  assert.match(logs.at(-1), /^Dropped a\.$/);
-  assert.match(logs[0], /^Discord: HTTP 503 \(a, try 1 of 5\)$/);
 });
 
-test('a message Discord refuses as malformed is dropped at once and the rest still go', async () => {
-  const state = outbox(['bad', 'good']);
+test('only a message queued over a week ago is dropped unsent', async () => {
+  const state = outbox(['old', 'new']);
+  state.outbox[0].queued = '2026-09-20T00:00:00.000Z';
+  state.outbox[1].queued = '2026-09-29T00:00:00.000Z';
+  const sent = [], logs = [];
+  const result = await sendOutbox(state, {
+    send: async payload => { sent.push(payload.embeds[0].title); }, sleep: async () => {}, log: line => logs.push(line),
+    now: new Date('2026-09-30T00:00:00Z'),
+  });
+  assert.deepEqual(result, { sent: 1, failed: false });
+  assert.deepEqual(sent, ['new']);
+  assert.ok(logs.includes('Dropped old: queued over 7 days ago.'));
+});
+
+test('a message Discord refuses is dropped at once and the rest still go', async () => {
+  const state = outbox(['bad', 'huge', 'good']);
   const sent = [];
   const result = await sendOutbox(state, {
     send: async payload => {
       if (payload.embeds[0].title === 'bad') throw Object.assign(new Error('Discord: HTTP 400'), { status: 400 });
+      if (payload.embeds[0].title === 'huge') throw Object.assign(new Error('Discord: HTTP 413'), { status: 413 });
       sent.push(payload.embeds[0].title);
     },
     sleep: async () => {}, log: () => {},

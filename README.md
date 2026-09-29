@@ -8,13 +8,18 @@ else:
   `wow_classic_beta`), with the regions that have the build and any still behind
 - **The Blizzard UI source for each build**, from the public
   [Gethe/wow-ui-source](https://github.com/Gethe/wow-ui-source) mirror (`forever`
-  branch): files and lines changed, API functions and events added or removed,
-  Blizzard addons touched, and a link to the full comparison
+  branch): files and lines changed, API functions and events added or removed
+  (named by their namespace, such as `C_UnitAuras`), every other changed API
+  doc by name with what kind of change it has (`secret`, `enum`, `types`),
+  Blizzard addons touched, and a link to the full comparison. When the mirror
+  briefly goes back to an older build, that isn't posted.
 - **Forever patch notes and hotfixes** posted by Blizzard staff on the US WoW
   forums, read from the public Blue Tracker feed. Only Forever notes count: a
-  staff notes topic in a Forever forum (or with Forever in its title), or a
-  standalone staff update inside one. Retail news, realm notices and chat
-  replies are left out.
+  staff notes topic in a Forever forum (or with Forever in its title), a staff
+  update written like notes inside one, or notes that a "Notes Posted"
+  announcement points to (so notes updated in place are caught too). The same
+  notes posted in two forums are posted once. Retail news, realm notices and
+  chat replies are left out.
 
 It only reads from Blizzard and GitHub. The one thing it sends is the Discord
 message. Nobody is pinged unless you set up a role (see Options).
@@ -30,17 +35,20 @@ its place or posting twice.
 
 ## Setup
 
-1. Create a **public** repository and push this code to it (public repositories
-   get free Actions minutes).
-2. In the repository: **Settings > Secrets and variables > Actions > New
-   repository secret**. Name: `FOREVER_TRACKER_WEBHOOK`. Value: the Discord
-   webhook URL of the staff channel.
-3. **Actions** tab: enable workflows if GitHub asks.
-4. **Actions > Forever tracker > Run workflow** with **Dry run** ticked. The log
-   shows the message it would post, and proves every source can be reached from
-   GitHub.
-5. Run it again without Dry run. The channel gets the "live" message, and the
-   schedule takes over from there.
+1. Create an empty **public** repository (public repositories get free Actions
+   minutes).
+2. Before any code is pushed, add the secret: **Settings > Secrets and
+   variables > Actions > New repository secret**. Name:
+   `FOREVER_TRACKER_WEBHOOK`. Value: the Discord webhook URL of the staff
+   channel. (Without it, every scheduled run fails and GitHub emails you.)
+3. Push this code to the repository. The schedule starts on its own.
+4. **Actions** tab: enable workflows if GitHub asks.
+5. Optional: **Actions > Forever tracker > Run workflow** with **Dry run**
+   ticked. The log shows the message it would post, and proves every source
+   can be reached from GitHub. Nothing is posted or saved.
+6. The first real run posts the "live" message to the channel: the next
+   scheduled run (within about 15 minutes), or **Run workflow** without Dry
+   run, whichever comes first. After that, only new things are posted.
 
 ## Options
 
@@ -51,7 +59,7 @@ Variables**):
 |---|---|
 | `INCLUDE_KNOWN_ISSUES` | `true` also posts staff Known Issues topics and their updates. Off by default. |
 | `PING_ROLE_ID` | A Discord role ID to ping on new builds. Off by default. |
-| `WATCH_ADDONS` | Blizzard addons to list first, in bold, such as `CooldownViewer,TrainerUI`. |
+| `WATCH_ADDONS` | Blizzard addons to list first, in bold, such as `CooldownViewer,TrainerUI`. Their API docs are listed first too. |
 | `FOREVER_PRODUCTS` | Patch server products to watch. Default `wow_classic_beta`. |
 
 ## Running it by hand
@@ -71,10 +79,17 @@ A real run needs `FOREVER_TRACKER_WEBHOOK` set, and saves its state to
 
 - If a source fails 8 runs in a row (about two hours), that run is marked
   failed once, so GitHub emails you. Nothing is posted to Discord about it.
-- A message Discord doesn't accept is kept and tried again next run, up to 5
-  times.
+- A message waits in the queue until Discord takes it, however many runs that
+  takes (for example while the webhook is deleted, or Discord is down). Only a
+  message queued over a week ago, or one Discord refuses as invalid, is
+  dropped. While messages can't be sent, each run is marked failed.
 - More than 5 new notes posts at once are posted as the newest 3 plus one
   message listing the rest.
+- If the Actions cache fails to give back the saved state, the run stops
+  without checking or saving anything and is marked failed; the next run tries
+  again. If saving fails (a warning on the "Save state" step), the next run may
+  post that run's messages again.
+- The very first run fails, and tries again next time, if no source answers.
 - The saved state lasts as long as the workflow keeps running. If nothing runs
   for 7 days it is lost, and the next run posts a new "live" message saying so.
 - GitHub turns off scheduled workflows in public repositories after 60 days

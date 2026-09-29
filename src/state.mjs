@@ -25,13 +25,15 @@ export function normaliseState(saved) {
   return state;
 }
 
-// A missing file is a first run. An unreadable one starts again from nothing.
+// A missing file gives null: a first run, a lost state, or a cache that
+// failed to restore (the tracker tells these apart). An unreadable file starts
+// again from nothing.
 export async function loadState(file, log = console.log) {
   let text;
   try {
     text = await readFile(file, 'utf8');
   } catch {
-    return emptyState();
+    return null;
   }
   try {
     return normaliseState(JSON.parse(text));
