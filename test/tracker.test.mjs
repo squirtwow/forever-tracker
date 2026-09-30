@@ -87,7 +87,7 @@ test('the first run records everything and posts one "live" message', async () =
   assert.deepEqual(live.allowed_mentions, { parse: [] });
   assert.equal(live.content, undefined);
   assert.equal(live.embeds[0].description, [
-    'Build 1.60.1.70009. On us, eu, kr, tw.',
+    'Build 1.60.1.70009. On US, EU, KR, TW.',
     'UI source at 1.60.1 (70009).',
     'Latest notes: [WoW Forever Beta Development Notes – Updated September 24](https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-updated-september-24/2360696/1)',
     '',
@@ -122,7 +122,7 @@ test('a new build, its UI source and its notes are posted once, in that order', 
   assert.equal(result.exitCode, 0);
   assert.deepEqual(titles(web).slice(1), ['New Forever build: 1.60.1.70010', 'UI source for 1.60.1 (70010)', 'Beta Client Update - September 30']);
   const [build, ui, notes] = web.posted.slice(1);
-  assert.equal(build.embeds[0].description, 'Was 1.60.1.70009. On us, eu, kr, tw.');
+  assert.equal(build.embeds[0].description, 'Was 1.60.1.70009. On US, EU, KR, TW.');
   assert.equal(build.content, '<@&112233445566>', 'a role is pinged for new builds only when one is set up');
   assert.equal(ui.content, undefined);
   assert.match(ui.embeds[0].description, /^1 file, \+3 \/ -1 lines\. \[Compare 70009\.\.\.70010\]/);

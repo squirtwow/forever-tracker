@@ -47,10 +47,12 @@ export function compareBuilds(previous, current) {
   return current.buildId < previous.buildId ? 'rollback' : 'new';
 }
 
-// "On us, eu." then "Still 1.60.1.70009: kr, tw." for any region behind.
+// "On US, EU." then "Still 1.60.1.70009: KR, TW." for any region behind.
+// Regions are stored lower case; only the text shows them in capitals.
 export function regionText(build) {
   const have = [], behind = new Map();
-  for (const [region, version] of Object.entries(build.regions || {})) {
+  for (const [key, version] of Object.entries(build.regions || {})) {
+    const region = key.toUpperCase();
     if (version === build.version) have.push(region);
     else behind.set(version, [...(behind.get(version) || []), region]);
   }

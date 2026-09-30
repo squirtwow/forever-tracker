@@ -177,6 +177,16 @@ test('a huge diff stays inside Discord limits, cut at whole lines, and says its 
   assert.ok(total <= 6000);
 });
 
+test('a build that only bumps the version says there are no UI or API changes', () => {
+  const embed = finishEmbed(uiEmbed({
+    head: { sha: 'd'.repeat(40), message: '1.60.1 (70124)' }, builds: ['1.60.1 (70124)'],
+    summary: summariseFiles([file('version.txt', 'modified')]), url: 'https://github.com/x', linkText: 'Compare 70058...70124',
+  }));
+  assert.match(embed.description, /^No UI or API changes in this build, only its version number\. \[Compare 70058\.\.\.70124\]/);
+  assert.doesNotMatch(embed.description, /0 files/);
+  assert.equal((embed.fields || []).length, 0);
+});
+
 // A fake GitHub: the commit list, a comparison, a commit (in pages of 300
 // files) and raw files. `raw` maps a path to its text, or to a status.
 function github({ list, compare = null, commit = null, pages = null, raw = {}, status = 200 }) {

@@ -36,8 +36,8 @@ test('the newest build in any region, and the regions still behind', () => {
   const current = summariseRows(parseVersions(withBuild(['us', 'eu'], '1.60.1.70010')).rows);
   assert.equal(current.version, '1.60.1.70010');
   assert.equal(current.buildId, 70010);
-  assert.equal(regionText(current), 'On us, eu. Still 1.60.1.70009: kr, tw.');
-  assert.equal(regionText(saved), 'On us, eu, kr, tw.');
+  assert.equal(regionText(current), 'On US, EU. Still 1.60.1.70009: KR, TW.');
+  assert.equal(regionText(saved), 'On US, EU, KR, TW.');
 });
 
 test('only a new version or build number counts as a new build', () => {
@@ -106,7 +106,7 @@ test('the build message', () => {
   const current = summariseRows(parseVersions(withBuild(['us', 'eu'], '1.60.1.70010')).rows);
   const embed = buildEmbed({ product: 'wow_classic_beta', previous: saved, current, kind: 'new' }, new Date('2026-09-30T00:00:00Z'));
   assert.equal(embed.title, 'New Forever build: 1.60.1.70010');
-  assert.equal(embed.description, 'Was 1.60.1.70009. On us, eu. Still 1.60.1.70009: kr, tw.');
+  assert.equal(embed.description, 'Was 1.60.1.70009. On US, EU. Still 1.60.1.70009: KR, TW.');
   assert.equal(embed.footer.text, 'Blizzard patch server, wow_classic_beta');
   assert.equal(embed.timestamp, '2026-09-30T00:00:00.000Z');
   const back = buildEmbed({ product: 'wow_classic_beta', previous: current, current: saved, kind: 'rollback' });

@@ -272,7 +272,9 @@ export function uiEmbed({ head, builds, summary, url, linkText, note }, { watch 
   const lines = `+${summary.additions} / -${summary.deletions} lines`;
   const count = summary.capped
     ? `${summary.listed}+ files, ${lines} in the first ${summary.listed} (GitHub lists no more, so all counts here are partial).`
-    : `${summary.files} ${summary.files === 1 ? 'file' : 'files'}, ${lines}.`;
+    : summary.files === 0
+      ? 'No UI or API changes in this build, only its version number.'
+      : `${summary.files} ${summary.files === 1 ? 'file' : 'files'}, ${lines}.`;
   const top = [`${count} [${escapeMarkdown(linkText)}](${url})`];
   if (builds.length > 1) top.push(`Covers ${builds.map(escapeMarkdown).join(', ')}.`);
   if (note) top.push(note);
